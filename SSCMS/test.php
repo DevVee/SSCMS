@@ -1,0 +1,1 @@
+<?php echo password_hash('sscms_arvee', PASSWORD_DEFAULT);

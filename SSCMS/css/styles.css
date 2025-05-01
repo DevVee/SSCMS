@@ -1,0 +1,15 @@
+/* Custom styles */
+.sb-nav-fixed .sb-sidenav {
+    width: 250px;
+    height: 100vh;
+    position: fixed;
+}
+.sb-nav-fixed #layoutSidenav_content {
+    margin-left: 250px;
+}
+.category-card {
+    transition: transform 0.2s;
+}
+.category-card:hover {
+    transform: scale(1.05);
+}

@@ -1,0 +1,31 @@
+/clinic-management/
+├── assets/
+│   └── img/
+│       ├── ICCLOGO.png
+│       └── ICC_Banner.png
+├── config/
+│   └── database.php
+├── includes/
+│   ├── functions.php
+│   ├── navigations.php
+├── css/
+│   └── styles.css
+├── js/
+│   └── scripts.js
+├── patients/
+│   ├── log-new-patient.php
+│   ├── log-visit.php
+│   └── search_patients.php
+├── appointments/
+│   ├── new-appointment.php
+│   └── appointment-list.php
+├── reports/
+│   ├── daily-reports.php
+│   ├── fetch_reports.php
+│   └── monthly-report.php
+├── inventory/
+│   ├── inventory.php
+│   └── fetch_medicines.php
+├── settings.php
+├── dashboard.php
+└── logout.php
