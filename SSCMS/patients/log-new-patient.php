@@ -10,6 +10,39 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['admin_category'])) {
     exit;
 }
 
+function sendSMS($number, $message) {
+    $apiKey = '2840c5de6cdfbe118d100ad33fdc179b';
+    $senderName = 'ICCBICLINIC';
+
+    $url = 'https://api.semaphore.co/api/v4/messages';
+    $data = [
+        'apikey' => $apiKey,
+        'number' => $number,
+        'message' => $message,
+        'sendername' => $senderName
+    ];
+
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_POST, 1);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($data));
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+    $response = curl_exec($ch);
+
+    if (curl_errno($ch)) {
+        $error = curl_error($ch);
+        error_log("[SSCMS SMS Error] cURL Error: $error");
+        $result = "cURL Error: $error";
+    } else {
+        error_log("[SSCMS SMS Response] Response: $response");
+        $result = "SMS Response: $response";
+    }
+
+    curl_close($ch);
+    return $result;
+}
+
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
@@ -95,6 +128,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ]);
         $visit_id = $conn->lastInsertId();
         error_log("[SSCMS Log Visit] Visit inserted into visits: visit_id=$visit_id, patient_id=$patient_id, medicine_name=" . ($medicine_name ?? 'NULL'));
+
+        // Get patient details for SMS
+        $stmt = $conn->prepare("SELECT first_name, last_name, guardian_contact FROM patients WHERE id = ?");
+        $stmt->execute([$patient_id]);
+        $patient = $stmt->fetch(PDO::FETCH_ASSOC);
+        $full_name = $patient['first_name'] . ' ' . $patient['last_name'];
+        $guardian_number = $patient['guardian_contact'];
+
+        // Log patient details for debugging
+        error_log("[SSCMS Log Visit] Patient Details: full_name=$full_name, guardian_number=" . ($guardian_number ?? 'NULL'));
+
+        // Check if guardian_number is empty
+        if (empty($guardian_number)) {
+            error_log("[SSCMS Log Visit] Warning: Guardian contact number is empty for patient_id=$patient_id");
+            $_SESSION['sms_debug_message'] = "Failed to send SMS: Guardian contact number is empty.";
+        } else {
+            // Prepare SMS message
+            $sms_message = "Good day! This is ICCBI CLINIC. We would like to inform you that your child, $full_name, visited the school clinic today at $visit_time on $visit_date for $reason. Rest assured they were properly attended to.";
+            if ($reason === 'Other' && $other_reason) {
+                $sms_message .= " (Details: $other_reason)";
+            }
+            $sms_response = sendSMS($guardian_number, $sms_message);
+            error_log("[SSCMS Log Visit] SMS sent to $guardian_number: $sms_message");
+            $_SESSION['sms_debug_message'] = $sms_response;
+        }
 
         // Update medicine inventory and log to medicine_logs
         if ($took_medicine === 'Yes') {
@@ -459,6 +517,15 @@ $searchTerm = filter_input(INPUT_GET, 'search', FILTER_SANITIZE_STRING) ?? '';
                             </div>
                         </div>
                         <?php unset($_SESSION['error_message']); ?>
+                    <?php endif; ?>
+                    <?php if (isset($_SESSION['sms_debug_message'])): ?>
+                        <div class="toast align-items-center text-bg-warning border-0 show" role="alert">
+                            <div class="d-flex">
+                                <div class="toast-body"><?= htmlspecialchars($_SESSION['sms_debug_message']) ?></div>
+                                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                            </div>
+                        </div>
+                        <?php unset($_SESSION['sms_debug_message']); ?>
                     <?php endif; ?>
                 </div>
 
@@ -839,7 +906,7 @@ $searchTerm = filter_input(INPUT_GET, 'search', FILTER_SANITIZE_STRING) ?? '';
             });
 
             // Initialize toasts
-            $('.toast').toast({ delay: 3000 });
+            $('.toast').toast({ delay: 5000 });
             $('.toast').toast('show');
 
             // Dynamically set required attributes

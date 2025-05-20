@@ -1,7 +1,17 @@
 <?php
 function sendSMS($number, $message) {
     $apiKey = '2840c5de6cdfbe118d100ad33fdc179b';
-    $senderName = 'ICCBICLINIC'; // Must be registered and approved in your Semaphore account
+    $senderName = 'ICCBICLINIC';
+
+    // Convert 09xxxxxxxxx to 639xxxxxxxxx
+    if (preg_match('/^09[0-9]{9}$/', $number)) {
+        $number = '63' . substr($number, 1);
+    }
+
+    // Validate final number format
+    if (!preg_match('/^63[0-9]{9}$/', $number)) {
+        return 'Error: Invalid phone number format';
+    }
 
     $url = 'https://api.semaphore.co/api/v4/messages';
     $data = [
@@ -20,17 +30,13 @@ function sendSMS($number, $message) {
     $response = curl_exec($ch);
 
     if (curl_errno($ch)) {
-        echo 'Error: ' . curl_error($ch);
+        $error = 'Error: ' . curl_error($ch);
+        error_log("[SSCMS SMS] cURL Error: " . curl_error($ch));
+        curl_close($ch);
+        return $error;
     }
 
     curl_close($ch);
     return $response;
 }
-
-// Test
-$testNumber = '09383072884'; // Must be in international format without plus sign
-$testMessage = 'Good day! This is ICCBI CLINIC. We would like to inform you that your child, [STUDENT_NAME], visited the school clinic today at [TIME] for a health concern. Rest assured they were properly attended to.';
-
-$response = sendSMS($testNumber, $testMessage);
-echo $response;
 ?>

@@ -2,9 +2,22 @@
 session_start();
 require_once 'config/database.php';
 
+// Function to validate session
+function isValidSession($conn, $user_id, $session_id) {
+    try {
+        $stmt = $conn->prepare("SELECT last_active FROM sessions WHERE user_id = ? AND session_id = ?");
+        $stmt->execute([$user_id, $session_id]);
+        $session = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $session && (time() - strtotime($session['last_active']) < 3600); // 1-hour session timeout
+    } catch (Exception $e) {
+        error_log("Session validation error: " . $e->getMessage());
+        return false;
+    }
+}
+
 // Prevent logged-in users from accessing login page
-if (isset($_SESSION['user_id'])) {
-    header('Location: /SSCMS/index.php');
+if (isset($_SESSION['user_id']) && isValidSession($conn, $_SESSION['user_id'], session_id())) {
+    header('Location: /SSCMS/dashboard.php');
     exit;
 }
 
@@ -27,23 +40,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             throw new Exception('Invalid email or password.');
         }
 
+        // Clear any existing sessions for the user
+        $stmt = $conn->prepare("DELETE FROM sessions WHERE user_id = ?");
+        $stmt->execute([$user['id']]);
+
+        // Start new session
         $_SESSION['user_id'] = $user['id'];
         $_SESSION['user_name'] = $user['name'];
         $_SESSION['admin_category'] = $user['admin_category'];
         $_SESSION['profile_picture'] = $user['profile_picture'];
 
         if ($remember) {
-            session_set_cookie_params(30 * 24 * 60 * 60);
+            session_set_cookie_params(30 * 24 * 60 * 60); // 30 days
             session_regenerate_id(true);
+        } else {
+            session_set_cookie_params(0); // Session cookie
         }
 
-        $stmt = $conn->prepare("INSERT INTO sessions (user_id, session_id, last_active) VALUES (?, ?, NOW()) 
-                                ON DUPLICATE KEY UPDATE last_active = NOW()");
+        // Insert new session
+        $stmt = $conn->prepare("INSERT INTO sessions (user_id, session_id, last_active) VALUES (?, ?, NOW())");
         $stmt->execute([$user['id'], session_id()]);
 
         ob_end_clean();
         header('Content-Type: application/json; charset=utf-8');
-        echo json_encode(['success' => true, 'message' => 'Login successful!', 'redirect' => '/SSCMS/index.php']);
+        echo json_encode(['success' => true, 'message' => 'Login successful!', 'redirect' => '/SSCMS/dashboard.php']);
         exit;
     } catch (Exception $e) {
         error_log("Login error: " . $e->getMessage());
@@ -211,7 +231,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 toastBody.style.color = 'var(--success)';
                                 toast.show();
                                 setTimeout(() => {
-                                    window.location.href = response.redirect || '/SSCMS/index.php';
+                                    window.location.href = response.redirect || '/SSCMS/dashboard.php';
                                 }, 1000);
                             } else {
                                 toastBody.textContent = response.message || 'Login failed.';
